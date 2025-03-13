@@ -1,0 +1,118 @@
+#pragma kernel Simulate
+
+// The state of a body (position in AU, velocity in m/s, mass in kg)
+struct Body
+{
+    float3 position; // in AU
+    float3 velocity; // in m/s
+    float mass; // in kg
+    float isComet;
+    float collided; // -1 if not collided, otherwise the index of the body it collided with
+};
+
+// Buffers for the particles and the major bodies that generate gravity.
+RWStructuredBuffer<Body> bodies;
+RWStructuredBuffer<Body> majorBodies; // Major bodies (e.g., Sun, planets, etc.)
+
+// Simulation parameters (set from C#)
+float deltaTime; // time step (seconds)
+float G; // gravitational constant (m^3/kg/s^2)
+float softening; // softening parameter (in AU)
+float collisionScale;
+
+// Conversion factor: 1 AU = 1.496e11 meters
+static const float AU_TO_METERS = 1.496e11;
+static const float rockDensity = 5500.0; // example: Earth's average density is ~5510 kg/m^3
+static const float gasDensity = 1100.0; // example: Jupiter's average density is ~1326 kg/m^3, Saturn 's is ~687 kg/m^3
+
+// In this example, we assume the number of major bodies is passed via a constant.
+int majorBodyCount;
+
+[numthreads(256, 1, 1)]
+void Simulate(uint id : SV_DispatchThreadID)
+{
+    // Load the particle's current state.
+    Body body = bodies[id];
+
+    // Skip simulation if this body already collided.
+    if (body.collided > -0.5f)
+    {
+        return;
+    }
+    
+    // Convert the particle's position from AU to meters.
+    float3 pos_m = body.position * AU_TO_METERS;
+
+    // ----------------------------------------------------------------------
+    // 1. Compute the acceleration (a0) at the current position (brute force).
+    // ----------------------------------------------------------------------
+    float3 a0 = float3(0.0, 0.0, 0.0);
+    for (int i = 0; i < majorBodyCount; i++)
+    {
+        Body major = majorBodies[i];
+        // Convert major body position from AU to meters.
+        float3 majorPos_m = major.position * AU_TO_METERS;
+        // Compute the displacement vector from the particle to the major body.
+        float3 d = majorPos_m - pos_m;
+        // Compute the distance with softening (in meters).
+        float dist = length(d) + softening * AU_TO_METERS;
+        // Accumulate acceleration: a += G * m / r^3 * d.
+        a0 += (G * major.mass / (dist * dist * dist)) * d;
+    }
+
+    // ----------------------------------------------------------------------
+    // 2. Verlet position update:
+    //    newPos = pos + v * dt + 0.5 * a0 * dt^2
+    // ----------------------------------------------------------------------
+    float3 newPos_m = pos_m + body.velocity * deltaTime + 0.5 * a0 * deltaTime * deltaTime;
+
+    
+    // ----------------------------------------------------------------------
+    // 3. Compute the acceleration (a1) at the new position.
+    // ----------------------------------------------------------------------
+    float3 a1 = float3(0.0, 0.0, 0.0);
+    for (int i = 0; i < majorBodyCount; i++)
+    {
+        Body major = majorBodies[i];
+        float3 majorPos_m = major.position * AU_TO_METERS;
+        float3 d = majorPos_m - newPos_m;
+        float dist = length(d) + softening * AU_TO_METERS;
+        a1 += (G * major.mass / (dist * dist * dist)) * d;
+        
+        float density = rockDensity;
+        if (i > 4 && i < 9)
+        {
+            density = gasDensity;
+        }
+        
+        float majorRadius = pow((3.0 * major.mass) / (4.0 * 3.14159265 * density), 1.0 / 3.0);
+        majorRadius *= collisionScale;
+        
+        // ----------------------------------------------------------------------
+        // 3.1 Compute if the body has collided with a major body.
+        // ----------------------------------------------------------------------
+        if (dist < majorRadius)
+        {
+            // Collision detected.
+            body.collided = i;
+            bodies[id] = body; // Write back the collision flag.
+            majorBodies[i].collided += 1.0; // Increment the collision count for the major body.
+            return; // Exit early so no further simulation occurs for this body.
+        }
+    }
+
+    // ----------------------------------------------------------------------
+    // 4. Verlet velocity update:
+    //    newVelocity = v + 0.5 * (a0 + a1) * dt
+    // ----------------------------------------------------------------------
+    float3 newVel = body.velocity + 0.5 * (a0 + a1) * deltaTime;
+
+    // ----------------------------------------------------------------------
+    // 5. Write the updated state:
+    //    Convert the new position back from meters to AU.
+    // ----------------------------------------------------------------------
+    body.position = newPos_m / AU_TO_METERS;
+    body.velocity = newVel;
+
+    bodies[id] = body;
+}

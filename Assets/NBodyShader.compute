@@ -1,0 +1,96 @@
+#pragma kernel Simulate
+
+struct Body
+{
+    float3 position; // in AU
+    float3 velocity; // in m/s
+    float mass; // in kg
+    float collided; // -1 if not collided
+};
+
+struct Node
+{
+    float3 center; // center-of-mass of this node (in AU)
+    float mass; // total mass in the node (in kg)
+    float3 minBounds; // bounds (assuming a cubic node) (in AU)
+    float3 maxBounds;
+    int childStart; // index of the first child in the node array
+    int childCount; // number of children (0 if leaf)
+    int bodyIndex; // if leaf, index of the body contained (-1 if not)
+};
+
+// The buffers (set from C#)
+RWStructuredBuffer<Body> bodies;
+RWStructuredBuffer<Body> majorBodies; // Changed to RWStructuredBuffer to allow updates
+StructuredBuffer<Node> majorNodes; // Barnes-Hut tree built only from majorBodies
+
+// Simulation parameters
+float deltaTime; // in seconds
+float G; // gravitational constant (m^3 kg^-1 s^-2)
+float theta; // opening angle threshold
+float softening; // a small value to avoid singularities (in AU)
+
+// Conversion factor: 1 AU = 1.496e11 meters
+static const float AU_TO_METERS = 1.496e11;
+
+// Each thread will process one body
+[numthreads(256, 1, 1)]
+void Simulate(uint id : SV_DispatchThreadID)
+{
+    // Load our body.
+    Body body = bodies[id];
+    float3 pos = body.position * AU_TO_METERS; // Convert position to meters
+    float3 force = float3(0, 0, 0);
+
+    // Use a fixed-size stack for tree traversal.
+    int stack[64];
+    int stackSize = 0;
+    // Push the root node (assumed to be at index 0) of majorNodes onto the stack.
+    stack[stackSize++] = 0;
+
+    // Traverse the majorBodies tree.
+    while (stackSize > 0)
+    {
+        int nodeIndex = stack[--stackSize];
+        Node node = majorNodes[nodeIndex];
+
+        float3 nodeCenter = node.center * AU_TO_METERS; // Convert node center to meters
+        float3 d = nodeCenter - pos;
+        float dist = length(d) + softening * AU_TO_METERS; // distance with softening (in meters)
+        float s = (node.maxBounds.x - node.minBounds.x) * AU_TO_METERS; // node size in meters
+
+        if (node.childCount == 0)
+        {
+            // Apply gravity if the node contains a majorBody (ignore if it's an empty node)
+            if (node.bodyIndex >= 0)
+            {
+                Body majorBody = majorBodies[node.bodyIndex];
+                float3 majorBodyPos = majorBody.position * AU_TO_METERS; // Convert major body position to meters
+                float3 dBody = majorBodyPos - pos;
+                float distBody = length(dBody) + softening * AU_TO_METERS;
+                force += (G * majorBody.mass / (distBody * distBody * distBody)) * dBody;
+            }
+        }
+        else if ((s / dist) < theta)
+        {
+            // Use the node's center of mass approximation if it's far enough
+            force += (G * node.mass / (dist * dist * dist)) * d;
+        }
+        else
+        {
+            // Push child nodes onto the stack
+            for (int i = 0; i < node.childCount; i++)
+            {
+                int childIndex = node.childStart + i;
+                stack[stackSize++] = childIndex;
+            }
+        }
+    }
+
+    // Update velocity and position using Euler integration.
+    body.velocity += force * deltaTime; // force is in N, mass is in kg, so acceleration is in m/s^2
+    body.position += (body.velocity * deltaTime) / AU_TO_METERS; // Convert velocity back to AU
+
+    // Write back our updated body.
+    bodies[id] = body;
+}
