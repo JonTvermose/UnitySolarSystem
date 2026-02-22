@@ -82,6 +82,19 @@ public class BinaryFileLoader : MonoBehaviour
     bodies.Add(new Body { position = new Vector3(39.4821f, 0, 0), velocity = new Vector3(0, 0, 4740), mass = 1.303e22f, collided = 0 }); // Pluto
     bodies.Add(new Body { position = new Vector3(1.01f, -0.27f, -2.72f), velocity = new Vector3(15932.28f, -2774.08f, 5157.77f), mass = 9.383516e18f, collided = 0 }); // Ceres
 
+    // Black Hole — spawns 200 AU out with ~35° inclination to the ecliptic.
+    // Closest approach ~10 AU from the Sun at ~80 km/s.
+    // Position: 10 AU lateral offset (x), 140 AU vertical (y, gives ~35° incl), -200 AU behind (z).
+    // Velocity: -4000 m/s in x (toward Sun's z-axis), -56000 m/s in y (diving down),
+    //           +56000 m/s in z (toward inner system). Net ~80 km/s, inclined ~35° to ecliptic.
+    bodies.Add(new Body
+    {
+      position = new Vector3(10f, 140f, -200f),          // ~245 AU from the sun, with a 35° inclination to the ecliptic plane
+      velocity = new Vector3(-4000f, -40000f, 56000f) * 0.5f,   // m/s — ~80 km/s, ~35° inclination * 0.5 to slow it down for better visualization
+      mass = 2.0e30f * 70.0f,                             // ~ solar mass * 70 (stellar black holes in the Milky Way typically range from 5-20 solar masses)
+      collided = 0
+    }); // Black Hole
+
     return bodies.ToArray();
   }
 

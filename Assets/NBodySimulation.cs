@@ -18,7 +18,7 @@ public class NBodySimulation : MonoBehaviour
   }
 
   // A flattened tree node structure (again, must match the compute shader).
-  // In a complete Barnes–Hut algorithm you would have many nodes.
+  // In a complete Barnesï¿½Hut algorithm you would have many nodes.
   struct Node
   {
     public Vector3 center;      // center-of-mass of the node
@@ -59,6 +59,7 @@ public class NBodySimulation : MonoBehaviour
   public GameObject neptune;
   public GameObject pluto;
   public GameObject ceres;
+  public GameObject blackHole;
   public GameObject moon;
 
   ComputeBuffer bodyBuffer;
@@ -67,7 +68,7 @@ public class NBodySimulation : MonoBehaviour
   public Body[] Bodies;
   public Body[] MajorBodies;
 
-  // In a full implementation, you’d rebuild the tree each frame.
+  // In a full implementation, youï¿½d rebuild the tree each frame.
   // For this simple example, we only build a single-node tree (the root).
   Node[] nodes;
 
@@ -114,6 +115,7 @@ public class NBodySimulation : MonoBehaviour
     computeShader.SetBuffer(kernel, "bodies", bodyBuffer);
     computeShader.SetBuffer(kernel, "majorBodies", majorBodyBuffer);
     material.SetBuffer("bodies", bodyBuffer);
+    material.SetBuffer("majorBodies", majorBodyBuffer);
     material.SetInt("_Mode", 1);
 
     // Set constant simulation parameters.
@@ -196,6 +198,12 @@ public class NBodySimulation : MonoBehaviour
       sphere.name = "Ceres";
       radius = 0.02f;
     }
+    if (i == 11)
+    {
+      sphere = GameObject.Instantiate(blackHole, position, Quaternion.identity);
+      sphere.name = "BlackHole";
+      radius = 0.04f;
+    }
     if (sphere == null)
     {
       sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -257,6 +265,11 @@ public class NBodySimulation : MonoBehaviour
         break;
       case "Ceres":
         MajorBodies[10].mass = normalMassBodies[10].mass * massMultiplier; 
+        break;
+      case "BlackHole":
+        // Clamp mass multiplier to prevent extreme values from destabilizing the sim
+        massMultiplier = Mathf.Clamp(massMultiplier, 0f, 10f);
+        MajorBodies[11].mass = normalMassBodies[11].mass * massMultiplier;
         break;
       default:
         Debug.LogError("Unknown target name: " + targetName);
@@ -334,6 +347,10 @@ public class NBodySimulation : MonoBehaviour
 
     majorBodyBuffer.GetData(MajorBodies);
     StepSimulation(timeStep);
+
+    // Update the major body buffer on the rendering material so shaders
+    // can read live BH position for color-shift / spaghettification effects
+    material.SetBuffer("majorBodies", majorBodyBuffer);
   }
 
   void OnRenderObject()
@@ -364,7 +381,7 @@ public class NBodySimulation : MonoBehaviour
 
 
   /// <summary>
-  /// Rebuilds the Barnes–Hut tree by recursively subdividing the domain.
+  /// Rebuilds the Barnesï¿½Hut tree by recursively subdividing the domain.
   /// </summary>
   public void RebuildBarnesHutTree()
   {

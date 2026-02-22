@@ -28,6 +28,7 @@ Shader "Custom/Comet"
             };
 
             StructuredBuffer<Body> bodies;
+            StructuredBuffer<Body> majorBodies;
             float _MaxMass;
             float _CometSize;
             float _NonCometSize;
@@ -86,6 +87,19 @@ Shader "Custom/Comet"
                 float size = i[0].isComet > 0.5 ? _CometSize : _NonCometSize;
                 float3 center = i[0].worldPos;
 
+                // Spaghettification: stretch toward the black hole when close
+                float3 bhPos = majorBodies[11].position;
+                float distToBH = length(center - bhPos);
+                float spaghettiThreshold = 2.0; // AU
+                float stretchFactor = 1.0;
+                float3 stretchDir = float3(0, 0, 0);
+                if (distToBH < spaghettiThreshold && distToBH > 0.001)
+                {
+                    float proximity = saturate(1.0 - distToBH / spaghettiThreshold);
+                    stretchFactor = 1.0 + proximity * 4.0; // Up to 5x stretch
+                    stretchDir = normalize(bhPos - center);
+                }
+
                 float3 up = float3(0, size, 0);
                 float3 right = float3(size, 0, 0);
 
@@ -93,6 +107,25 @@ Shader "Custom/Comet"
                 float3 cameraForward = normalize(UnityWorldSpaceViewDir(center)); // Direction from center to camera
                 float3 billboardRight = normalize(cross(cameraForward, up)); // Right vector
                 float3 billboardUp = normalize(cross(billboardRight, cameraForward)); // Up vector
+
+                // Apply spaghettification: stretch the quad along the direction toward the BH
+                if (stretchFactor > 1.01)
+                {
+                    // Project stretchDir onto billboard plane
+                    float3 projRight = dot(stretchDir, billboardRight) * billboardRight;
+                    float3 projUp = dot(stretchDir, billboardUp) * billboardUp;
+                    float3 stretchDirBillboard = projRight + projUp;
+                    float stretchLen = length(stretchDirBillboard);
+                    if (stretchLen > 0.001)
+                    {
+                        stretchDirBillboard = normalize(stretchDirBillboard);
+                        // Scale the billboard along the stretch direction
+                        float rightDot = dot(stretchDirBillboard, billboardRight);
+                        float upDot = dot(stretchDirBillboard, billboardUp);
+                        billboardRight = billboardRight * (1.0 + abs(rightDot) * (stretchFactor - 1.0));
+                        billboardUp = billboardUp * (1.0 + abs(upDot) * (stretchFactor - 1.0));
+                    }
+                }
 
                 g2f vertex;
                 vertex.color = i[0].color;

@@ -28,6 +28,7 @@ Shader "Custom/NBodyMaterial"
             
             // The structured buffer (set by the manager script)
             StructuredBuffer<Body> bodies;
+            StructuredBuffer<Body> majorBodies;
             float _MaxMass;
             
             // Our input: we only need the vertex ID.
@@ -110,6 +111,17 @@ Shader "Custom/NBodyMaterial"
                 // Color can be based on mass.
                 // Determine color based on isComet
                 o.color = GetBodyColor(body);
+
+                // Relativistic color shift near the black hole (index 11)
+                float3 bhPos = majorBodies[11].position;
+                float distToBH = length(body.position - bhPos);
+                float bhThreshold = 3.0; // AU
+                if (distToBH < bhThreshold)
+                {
+                    float proximity = saturate(1.0 - distToBH / bhThreshold);
+                    o.color = lerp(o.color, float3(1.0, 0.3, 0.0), proximity * 0.8);
+                }
+
                 o.collided = body.collided;  // Pass along the collision flag.
 
                 return o;

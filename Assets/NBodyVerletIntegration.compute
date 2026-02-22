@@ -24,6 +24,7 @@ float collisionScale;
 static const float AU_TO_METERS = 1.496e11;
 static const float rockDensity = 5500.0; // example: Earth's average density is ~5510 kg/m^3
 static const float gasDensity = 1100.0; // example: Jupiter's average density is ~1326 kg/m^3, Saturn 's is ~687 kg/m^3
+static const float c_light = 299792458.0; // speed of light in m/s
 
 // In this example, we assume the number of major bodies is passed via a constant.
 int majorBodyCount;
@@ -79,14 +80,23 @@ void Simulate(uint id : SV_DispatchThreadID)
         float dist = length(d) + softening * AU_TO_METERS;
         a1 += (G * major.mass / (dist * dist * dist)) * d;
         
-        float density = rockDensity;
-        if (i > 4 && i < 9)
+        float majorRadius;
+        if (i == 11)
         {
-            density = gasDensity;
+            // Black hole: use Schwarzschild radius r_s = 2GM/c^2, scaled up for visibility
+            majorRadius = (2.0 * G * major.mass) / (c_light * c_light);
+            majorRadius *= collisionScale * 1000.0;
         }
-        
-        float majorRadius = pow((3.0 * major.mass) / (4.0 * 3.14159265 * density), 1.0 / 3.0);
-        majorRadius *= collisionScale;
+        else
+        {
+            float density = rockDensity;
+            if (i > 4 && i < 9)
+            {
+                density = gasDensity;
+            }
+            majorRadius = pow((3.0 * major.mass) / (4.0 * 3.14159265 * density), 1.0 / 3.0);
+            majorRadius *= collisionScale;
+        }
         
         // ----------------------------------------------------------------------
         // 3.1 Compute if the body has collided with a major body.
