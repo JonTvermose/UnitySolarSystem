@@ -80,7 +80,7 @@ Shader "Hidden/BlackHoleLensing"
                 float lensOffset = _LensingStrength * schwarzschildScreenRadius * schwarzschildScreenRadius / (dist * dist + 0.0001);
 
                 // Clamp offset to avoid extreme distortions
-                lensOffset = min(lensOffset, 0.3);
+                lensOffset = min(lensOffset, 0.5);
 
                 // Apply the offset: pull sampled UV toward the black hole
                 float2 offsetUV = i.uv;

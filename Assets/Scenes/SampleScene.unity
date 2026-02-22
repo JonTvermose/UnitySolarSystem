@@ -4376,11 +4376,12 @@ MonoBehaviour:
   blackHoleWorldPos: {x: 0, y: 0, z: 0}
   blackHoleMass: 1
   blackHoleRadius: 0.5
-  lensingStrength: 1
+  lensingStrength: 10
+  lensingSlider: {fileID: 0}
   diskInnerRadius: 0.5
   diskOuterRadius: 2
-  diskColor: {r: 1, g: 1, b: 1, a: 1}
-  diskEmission: 1
+  diskColor: {r: 1, g: 0.5, b: 0.1, a: 1}
+  diskEmission: 1.5
   diskSpinSpeed: 30
   effectEnabled: 1
   debugDrawSphere: 1

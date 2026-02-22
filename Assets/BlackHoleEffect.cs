@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 /// <summary>
 /// Image effect that performs gravitational lensing + accretion disc overlay
@@ -15,7 +16,12 @@ public class BlackHoleEffect : MonoBehaviour
   public Vector3 blackHoleWorldPos = Vector3.zero;
   public float blackHoleMass = 1f;
   public float blackHoleRadius = 0.5f;
-  public float lensingStrength = 1.5f;
+  [Range(0f, 20f)]
+  public float lensingStrength = 3.0f;
+
+  [Header("UI")]
+  [Tooltip("Optional: drag a UI Slider here to control lensing strength at runtime")]
+  public Slider lensingSlider;
 
   [Header("Accretion Disk Settings")]
   public float diskInnerRadius = 0.5f;
@@ -50,6 +56,20 @@ public class BlackHoleEffect : MonoBehaviour
     {
       simulation = manager.GetComponent<NBodySimulation>();
     }
+
+    // Wire up the optional lensing slider
+    if (lensingSlider != null)
+    {
+      lensingSlider.minValue = 0f;
+      lensingSlider.maxValue = 20f;
+      lensingSlider.value = lensingStrength;
+      lensingSlider.onValueChanged.AddListener(OnLensingSliderChanged);
+    }
+  }
+
+  private void OnLensingSliderChanged(float value)
+  {
+    lensingStrength = value;
   }
 
   private void LateUpdate()
@@ -125,6 +145,7 @@ public class BlackHoleEffect : MonoBehaviour
     diskMaterial.SetColor("_BaseColor", diskColor);
     diskMaterial.SetFloat("_Emission", diskEmission);
     diskMaterial.SetFloat("_SpinAngle", Mathf.Repeat(Time.time * diskSpinSpeed, 360f));
+    diskMaterial.SetFloat("_Time2", Time.time);
 
     Graphics.Blit(temp, dst, diskMaterial);
 

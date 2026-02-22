@@ -65,8 +65,8 @@ Material:
     - _GlossMapScale: 1
     - _Glossiness: 0.5
     - _GlossyReflections: 1
-    - _LensingStrength: 1
-    - _Mass: 2.011061
+    - _LensingStrength: 10
+    - _Mass: 70.38713
     - _Metallic: 0
     - _Mode: 0
     - _OcclusionStrength: 1
